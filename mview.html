@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF PPT Viewer - Modern UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+            overflow: hidden;
+            margin: 0;
+        }
+
+        /* Navigasi Overlay - Lebih Kecil & Lebih Terlihat */
+        .nav-btn {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(30, 41, 59, 0.7); /* Latar belakang lebih gelap & solid */
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2); /* Border lebih tegas */
+            border-radius: 50%;
+            color: rgba(255, 255, 255, 0.8); /* Icon lebih terang */
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            outline: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .nav-btn:hover {
+            background: rgba(56, 189, 248, 0.9); /* Berubah menjadi biru langit saat hover */
+            color: #fff;
+            transform: translateY(-50%) scale(1.1);
+            border-color: #38bdf8;
+        }
+
+        .nav-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        .nav-btn.prev { left: 20px; }
+        .nav-btn.next { right: 20px; }
+
+        .nav-btn svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Status Page Kiri Bawah & Blending */
+        #page-info {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(12px);
+            padding: 8px 18px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            color: rgba(255, 255, 255, 0.6);
+            z-index: 110;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #page-num {
+            color: #38bdf8;
+            font-weight: 600;
+        }
+
+        /* Sliding Mechanism */
+        #canvas-wrapper {
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+            background-color: #000;
+            overflow: hidden;
+        }
+
+        #canvas-track {
+            display: flex;
+            height: 100%;
+            width: 200%;
+            position: absolute;
+            left: 0;
+            transition: none;
+        }
+
+        .slide {
+            width: 50%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+            padding: 20px;
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            box-shadow: 0 0 60px rgba(0,0,0,0.9);
+            border-radius: 4px;
+        }
+
+        .transition-active {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+
+        .hidden { display: none !important; }
+
+        /* Loading Screen */
+        #loading-screen {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #020617;
+        }
+
+        .loader {
+            border: 2px solid rgba(255,255,255,0.05);
+            border-top: 2px solid #38bdf8;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 24px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loader"></div>
+        <h1 class="text-lg font-light tracking-widest text-slate-500 uppercase">Memuat Materi</h1>
+        <p id="error-message" class="text-red-400 mt-4 hidden">Gagal memuat PDF. Pastikan koneksi aman.</p>
+    </div>
+
+    <!-- Viewer Screen -->
+    <div id="viewer-screen" class="hidden">
+        <button class="nav-btn prev" id="prev-page" title="Halaman Sebelumnya">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+        </button>
+        
+        <button class="nav-btn next" id="next-page" title="Halaman Berikutnya">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+        </button>
+
+        <div id="page-info">
+            <span id="page-num">1</span>
+            <span class="opacity-30">/</span>
+            <span id="page-count">0</span>
+        </div>
+
+        <div id="canvas-wrapper">
+            <div id="canvas-track">
+                <div class="slide" id="slide-1">
+                    <canvas id="canvas-primary"></canvas>
+                </div>
+                <div class="slide" id="slide-2">
+                    <canvas id="canvas-secondary"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PDF_URL = 'https://labsdigital.github.io/pdfslides/Pasar_Kerja_Telah_Berubah.pdf';
+        
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let pdfDoc = null,
+            pageNum = 1,
+            isAnimating = false,
+            scale = 2; 
+
+        const loadingScreen = document.getElementById('loading-screen');
+        const viewerScreen = document.getElementById('viewer-screen');
+        const track = document.getElementById('canvas-track');
+        const canvasPrimary = document.getElementById('canvas-primary');
+        const canvasSecondary = document.getElementById('canvas-secondary');
+
+        async function renderToCanvas(num, targetCanvas) {
+            const page = await pdfDoc.getPage(num);
+            const viewport = page.getViewport({ scale: scale });
+            const ctx = targetCanvas.getContext('2d');
+            
+            targetCanvas.height = viewport.height;
+            targetCanvas.width = viewport.width;
+
+            const renderContext = {
+                canvasContext: ctx,
+                viewport: viewport
+            };
+            
+            await page.render(renderContext).promise;
+        }
+
+        async function navigate(direction) {
+            if (isAnimating) return;
+            
+            const nextNum = direction === 'next' ? pageNum + 1 : pageNum - 1;
+            if (nextNum < 1 || nextNum > pdfDoc.numPages) return;
+
+            isAnimating = true;
+
+            if (direction === 'next') {
+                await renderToCanvas(nextNum, canvasSecondary);
+                track.classList.add('transition-active');
+                track.style.transform = 'translateX(-50%)';
+            } else {
+                track.style.transform = 'translateX(-50%)';
+                await renderToCanvas(nextNum, canvasPrimary);
+                await renderToCanvas(pageNum, canvasSecondary);
+                
+                setTimeout(() => {
+                    track.classList.add('transition-active');
+                    track.style.transform = 'translateX(0%)';
+                }, 20);
+            }
+
+            setTimeout(async () => {
+                pageNum = nextNum;
+                document.getElementById('page-num').textContent = pageNum;
+                track.classList.remove('transition-active');
+                track.style.transform = 'translateX(0%)';
+                await renderToCanvas(pageNum, canvasPrimary);
+                isAnimating = false;
+            }, 410);
+        }
+
+        async function loadHardcodedPdf() {
+            try {
+                pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+                document.getElementById('page-count').textContent = pdfDoc.numPages;
+                
+                loadingScreen.classList.add('hidden');
+                viewerScreen.classList.remove('hidden');
+                
+                pageNum = 1;
+                document.getElementById('page-num').textContent = pageNum;
+                await renderToCanvas(pageNum, canvasPrimary);
+            } catch (err) {
+                console.error("Error loading PDF:", err);
+                document.getElementById('error-message').classList.remove('hidden');
+                document.querySelector('.loader').style.display = 'none';
+            }
+        }
+
+        window.onload = loadHardcodedPdf;
+
+        document.getElementById('prev-page').addEventListener('click', () => navigate('prev'));
+        document.getElementById('next-page').addEventListener('click', () => navigate('next'));
+
+        window.addEventListener('keydown', (e) => {
+            if (viewerScreen.classList.contains('hidden')) return;
+
+            if (e.key === 'ArrowLeft') {
+                navigate('prev');
+            } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
+                navigate('next');
+            } else if (e.key === 'Escape') {
+                pageNum = 1;
+                document.getElementById('page-num').textContent = pageNum;
+                renderToCanvas(pageNum, canvasPrimary);
+            }
+        });
+
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (pdfDoc && !viewerScreen.classList.contains('hidden')) {
+                    renderToCanvas(pageNum, canvasPrimary);
+                }
+            }, 300);
+        });
+    </script>
+</body>
+</html>
