@@ -22,67 +22,96 @@
             position: fixed;
             top: 0;
             bottom: 0;
-            width: 80px;
+            width: 100px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(0, 0, 0, 0);
+            background: transparent;
             border: none;
-            color: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.05);
             cursor: pointer;
-            transition: all 0.3s ease;
-            z-index: 50;
+            transition: all 0.2s ease;
+            z-index: 100;
             outline: none;
         }
 
         .nav-btn:hover {
-            background: rgba(255, 255, 255, 0.03);
-            color: rgba(255, 255, 255, 0.6);
+            background: linear-gradient(to right, rgba(255,255,255,0.02), transparent);
+            color: rgba(255, 255, 255, 0.4);
+        }
+        
+        .nav-btn.next:hover {
+            background: linear-gradient(to left, rgba(255,255,255,0.02), transparent);
         }
 
         .nav-btn.prev { left: 0; }
         .nav-btn.next { right: 0; }
 
         .nav-btn svg {
-            width: 40px;
-            height: 40px;
+            width: 48px;
+            height: 48px;
         }
 
         /* Status Page */
         #page-info {
             position: fixed;
-            bottom: 20px;
+            bottom: 25px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.5);
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            opacity: 0.4;
-            transition: opacity 0.3s;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            opacity: 0;
+            transition: opacity 0.4s;
             pointer-events: none;
-            z-index: 60;
+            z-index: 110;
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
-        #viewer-container:hover #page-info {
-            opacity: 1;
+        #viewer-screen:hover #page-info {
+            opacity: 0.7;
         }
 
-        /* Canvas Wrapper */
+        /* Sliding Mechanism */
         #canvas-wrapper {
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: relative;
             height: 100vh;
             width: 100vw;
             background-color: #000;
+            overflow: hidden;
+        }
+
+        #canvas-track {
+            display: flex;
+            height: 100%;
+            width: 200%; /* Menampung 2 halaman sekaligus */
+            position: absolute;
+            left: 0;
+            transition: none;
+        }
+
+        .slide {
+            width: 50%; /* Setengah dari track (100vw) */
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
         }
 
         canvas {
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+        }
+
+        /* Animasi Class */
+        .transition-active {
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
         }
 
         .hidden { display: none !important; }
@@ -100,15 +129,16 @@
 
         .upload-box {
             border: 2px dashed rgba(255,255,255,0.1);
-            padding: 3rem;
-            border-radius: 1.5rem;
+            padding: 4rem;
+            border-radius: 2rem;
             transition: all 0.3s;
             cursor: pointer;
         }
 
         .upload-box:hover {
             border-color: #38bdf8;
-            background: rgba(56, 189, 248, 0.05);
+            background: rgba(56, 189, 248, 0.03);
+            transform: translateY(-2px);
         }
     </style>
 </head>
@@ -117,13 +147,13 @@
     <!-- Upload Screen -->
     <div id="upload-screen">
         <div class="upload-box" onclick="document.getElementById('file-input').click()">
-            <svg class="w-16 h-16 mx-auto mb-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-16 h-16 mx-auto mb-6 text-sky-500/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
             </svg>
-            <h1 class="text-2xl font-semibold mb-2">Unggah PDF Anda</h1>
-            <p class="text-slate-400 mb-6">Klik atau seret file PDF untuk memulai presentasi</p>
-            <button class="bg-sky-600 hover:bg-sky-500 text-white px-6 py-2 rounded-lg font-medium transition">
-                Pilih File
+            <h1 class="text-3xl font-light mb-2">PowerPoint Style Viewer</h1>
+            <p class="text-slate-500 mb-8">Unggah PDF untuk memulai presentasi</p>
+            <button class="bg-sky-600 hover:bg-sky-500 text-white px-8 py-3 rounded-full font-medium transition shadow-lg shadow-sky-900/20">
+                Pilih Dokumen
             </button>
             <input type="file" id="file-input" class="hidden" accept="application/pdf">
         </div>
@@ -132,19 +162,26 @@
     <!-- Viewer Screen -->
     <div id="viewer-screen" class="hidden">
         <button class="nav-btn prev" id="prev-page">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 19l-7-7 7-7"></path></svg>
         </button>
         
         <button class="nav-btn next" id="next-page">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7"></path></svg>
         </button>
 
         <div id="page-info">
-            Halaman <span id="page-num">1</span> dari <span id="page-count">0</span>
+            <span id="page-num">1</span> / <span id="page-count">0</span>
         </div>
 
         <div id="canvas-wrapper">
-            <canvas id="pdf-canvas"></canvas>
+            <div id="canvas-track">
+                <div class="slide" id="slide-1">
+                    <canvas id="canvas-primary"></canvas>
+                </div>
+                <div class="slide" id="slide-2">
+                    <canvas id="canvas-secondary"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -154,72 +191,83 @@
 
         let pdfDoc = null,
             pageNum = 1,
-            pageRendering = false,
-            pageNumPending = null,
-            scale = 2, // Kualitas render tinggi
-            canvas = document.getElementById('pdf-canvas'),
-            ctx = canvas.getContext('2d');
+            isAnimating = false,
+            scale = 2;
 
         const uploadScreen = document.getElementById('upload-screen');
         const viewerScreen = document.getElementById('viewer-screen');
         const fileInput = document.getElementById('file-input');
+        const track = document.getElementById('canvas-track');
+        
+        const canvasPrimary = document.getElementById('canvas-primary');
+        const canvasSecondary = document.getElementById('canvas-secondary');
 
         /**
-         * Render halaman spesifik
+         * Render halaman ke canvas tertentu
          */
-        function renderPage(num) {
-            pageRendering = true;
+        async function renderToCanvas(num, targetCanvas) {
+            const page = await pdfDoc.getPage(num);
+            const viewport = page.getViewport({ scale: scale });
+            const ctx = targetCanvas.getContext('2d');
             
-            pdfDoc.getPage(num).then((page) => {
-                const viewport = page.getViewport({ scale: scale });
-                
-                // Sesuaikan canvas dengan viewport
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
+            targetCanvas.height = viewport.height;
+            targetCanvas.width = viewport.width;
 
-                const renderContext = {
-                    canvasContext: ctx,
-                    viewport: viewport
-                };
-                
-                const renderTask = page.render(renderContext);
-
-                renderTask.promise.then(() => {
-                    pageRendering = false;
-                    if (pageNumPending !== null) {
-                        renderPage(pageNumPending);
-                        pageNumPending = null;
-                    }
-                });
-            });
-
-            document.getElementById('page-num').textContent = num;
+            const renderContext = {
+                canvasContext: ctx,
+                viewport: viewport
+            };
+            
+            await page.render(renderContext).promise;
         }
 
         /**
-         * Antrian render jika sedang merender halaman lain
+         * Navigasi dengan transisi sliding
          */
-        function queueRenderPage(num) {
-            if (pageRendering) {
-                pageNumPending = num;
+        async function navigate(direction) {
+            if (isAnimating) return;
+            
+            const nextNum = direction === 'next' ? pageNum + 1 : pageNum - 1;
+            if (nextNum < 1 || nextNum > pdfDoc.numPages) return;
+
+            isAnimating = true;
+
+            if (direction === 'next') {
+                // Siapkan halaman baru di canvas kanan (secondary)
+                await renderToCanvas(nextNum, canvasSecondary);
+                
+                // Mulai Animasi geser ke kiri
+                track.classList.add('transition-active');
+                track.style.transform = 'translateX(-50%)';
             } else {
-                renderPage(num);
+                // Taruh halaman baru di kiri (pindahkan track ke -50% dulu secara instan)
+                track.style.transform = 'translateX(-50%)';
+                // Render halaman lama ke canvas kiri (primary), halaman baru ke kanan (secondary)
+                // Tapi untuk prev, lebih mudah: render halaman baru ke primary, halaman sekarang ke secondary
+                await renderToCanvas(nextNum, canvasPrimary);
+                await renderToCanvas(pageNum, canvasSecondary);
+                
+                // Beri jeda kecil agar browser sadar posisi track
+                setTimeout(() => {
+                    track.classList.add('transition-active');
+                    track.style.transform = 'translateX(0%)';
+                }, 20);
             }
-        }
 
-        /**
-         * Navigasi
-         */
-        function onPrevPage() {
-            if (pageNum <= 1) return;
-            pageNum--;
-            queueRenderPage(pageNum);
-        }
-
-        function onNextPage() {
-            if (pageNum >= pdfDoc.numPages) return;
-            pageNum++;
-            queueRenderPage(pageNum);
+            // Tunggu animasi selesai (350ms sesuai CSS)
+            setTimeout(async () => {
+                pageNum = nextNum;
+                document.getElementById('page-num').textContent = pageNum;
+                
+                // Kembalikan status track ke posisi normal (Halaman aktif selalu di primary)
+                track.classList.remove('transition-active');
+                track.style.transform = 'translateX(0%)';
+                
+                // Render ulang halaman aktif ke primary (untuk persiapan navigasi berikutnya)
+                await renderToCanvas(pageNum, canvasPrimary);
+                
+                isAnimating = false;
+            }, 360);
         }
 
         /**
@@ -230,60 +278,65 @@
             uploadScreen.classList.remove('hidden');
             pdfDoc = null;
             pageNum = 1;
-            fileInput.value = ""; // Reset input
+            fileInput.value = "";
+            track.style.transform = 'translateX(0%)';
         }
 
         /**
          * Load Document
          */
-        fileInput.addEventListener('change', (e) => {
+        fileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file && file.type === 'application/pdf') {
                 const reader = new FileReader();
-                reader.onload = function() {
+                reader.onload = async function() {
                     const typedarray = new Uint8Array(this.result);
 
-                    pdfjsLib.getDocument(typedarray).promise.then((pdfDoc_) => {
-                        pdfDoc = pdfDoc_;
+                    try {
+                        pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
                         document.getElementById('page-count').textContent = pdfDoc.numPages;
                         
-                        // Switch UI
                         uploadScreen.classList.add('hidden');
                         viewerScreen.classList.remove('hidden');
                         
                         pageNum = 1;
-                        renderPage(pageNum);
-                    }).catch(err => {
-                        console.error("Error loading PDF: ", err);
-                        alert("Gagal memuat PDF. Pastikan file tidak rusak.");
-                    });
+                        document.getElementById('page-num').textContent = pageNum;
+                        await renderToCanvas(pageNum, canvasPrimary);
+                    } catch (err) {
+                        console.error(err);
+                        alert("Gagal memuat PDF.");
+                    }
                 };
                 reader.readAsArrayBuffer(file);
             }
         });
 
         // Event Listeners
-        document.getElementById('prev-page').addEventListener('click', onPrevPage);
-        document.getElementById('next-page').addEventListener('click', onNextPage);
+        document.getElementById('prev-page').addEventListener('click', () => navigate('prev'));
+        document.getElementById('next-page').addEventListener('click', () => navigate('next'));
 
         // Keyboard Controls
         window.addEventListener('keydown', (e) => {
             if (viewerScreen.classList.contains('hidden')) return;
 
             if (e.key === 'ArrowLeft') {
-                onPrevPage();
+                navigate('prev');
             } else if (e.key === 'ArrowRight' || e.key === ' ') {
-                onNextPage();
+                navigate('next');
             } else if (e.key === 'Escape') {
                 exitViewer();
             }
         });
 
-        // Auto-resize handling (optional but good for PPT feel)
+        // Handle Resize
+        let resizeTimeout;
         window.addEventListener('resize', () => {
-            if (pdfDoc && !viewerScreen.classList.contains('hidden')) {
-                queueRenderPage(pageNum);
-            }
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (pdfDoc && !viewerScreen.classList.contains('hidden')) {
+                    renderToCanvas(pageNum, canvasPrimary);
+                }
+            }, 200);
         });
     </script>
 </body>
